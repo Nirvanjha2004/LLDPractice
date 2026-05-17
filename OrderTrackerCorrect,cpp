@@ -1,0 +1,563 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include <ctime>
+
+using namespace std;
+
+// Forward declarations
+class Order;
+class PlacedState;
+class ConfirmedState;
+class PreparingState;
+class ReadyForPickupState;
+class OutForDeliveryState;
+class DeliveredState;
+class CancelledState;
+
+
+// ---------------- CUSTOMER ----------------
+
+class Customer {
+private:
+    int customerId;
+    string name;
+
+public:
+    Customer(int id, string name) {
+        this->customerId = id;
+        this->name = name;
+    }
+
+    string getName() {
+        return name;
+    }
+};
+
+
+// ---------------- MENU ITEM ----------------
+
+class MenuItem {
+private:
+    int itemId;
+    string name;
+
+public:
+    MenuItem(int id, string name) {
+        this->itemId = id;
+        this->name = name;
+    }
+
+    string getName() {
+        return name;
+    }
+};
+
+
+// ---------------- STATE INTERFACE ----------------
+
+class OrderState {
+public:
+
+    virtual void next(Order* order) = 0;
+
+    virtual bool canCancel() = 0;
+
+    virtual string getName() = 0;
+
+    virtual ~OrderState() = default;
+};
+
+
+// ---------------- ORDER ----------------
+
+class Order {
+private:
+    int orderId;
+    Customer* customer;
+    vector<MenuItem*> items;
+    int totalAmount;
+    int timestamp;
+
+    OrderState* state;
+
+public:
+
+    Order(
+        int id,
+        Customer* customer,
+        vector<MenuItem*> items,
+        int totalAmount
+    ) {
+
+        this->orderId = id;
+        this->customer = customer;
+        this->items = items;
+        this->totalAmount = totalAmount;
+
+        this->timestamp =
+            (int)time(nullptr);
+
+        this->state =
+            new PlacedState();
+    }
+
+
+    void nextState() {
+
+        state->next(this);
+    }
+
+
+    void setState(
+        OrderState* newState
+    ) {
+
+        delete state;
+
+        state = newState;
+    }
+
+
+    void cancel() {
+
+        if (
+            state->canCancel()
+        ) {
+
+            setState(
+                new CancelledState()
+            );
+
+            cout
+                << "Order cancelled\n";
+        }
+
+        else {
+
+            cout
+                << "Cannot cancel now\n";
+        }
+    }
+
+
+    string getCurrentState() {
+
+        return
+            state
+            ->getName();
+    }
+
+
+    int getId() {
+
+        return orderId;
+    }
+
+
+    void printStatus() {
+
+        cout
+
+            << "Order "
+            << orderId
+
+            << " -> "
+
+            << getCurrentState()
+
+            << endl;
+    }
+
+
+    ~Order() {
+
+        delete state;
+    }
+};
+
+
+// ---------------- STATES ----------------
+
+class PlacedState
+    : public OrderState {
+
+public:
+
+    void next(
+        Order* order
+    ) override {
+
+        order->setState(
+            new ConfirmedState()
+        );
+    }
+
+
+    bool canCancel()
+    override {
+
+        return true;
+    }
+
+
+    string getName()
+    override {
+
+        return "PLACED";
+    }
+};
+
+
+
+class ConfirmedState
+    : public OrderState {
+
+public:
+
+    void next(
+        Order* order
+    ) override {
+
+        order->setState(
+            new PreparingState()
+        );
+    }
+
+
+    bool canCancel()
+    override {
+
+        return true;
+    }
+
+
+    string getName()
+    override {
+
+        return "CONFIRMED";
+    }
+};
+
+
+
+class PreparingState
+    : public OrderState {
+
+public:
+
+    void next(
+        Order* order
+    ) override {
+
+        order->setState(
+            new ReadyForPickupState()
+        );
+    }
+
+
+    bool canCancel()
+    override {
+
+        return false;
+    }
+
+
+    string getName()
+    override {
+
+        return "PREPARING";
+    }
+};
+
+
+
+class ReadyForPickupState
+    : public OrderState {
+
+public:
+
+    void next(
+        Order* order
+    ) override {
+
+        order->setState(
+            new OutForDeliveryState()
+        );
+    }
+
+
+    bool canCancel()
+    override {
+
+        return false;
+    }
+
+
+    string getName()
+    override {
+
+        return "READY_FOR_PICKUP";
+    }
+};
+
+
+
+class OutForDeliveryState
+    : public OrderState {
+
+public:
+
+    void next(
+        Order* order
+    ) override {
+
+        order->setState(
+            new DeliveredState()
+        );
+    }
+
+
+    bool canCancel()
+    override {
+
+        return false;
+    }
+
+
+    string getName()
+    override {
+
+        return "OUT_FOR_DELIVERY";
+    }
+};
+
+
+
+class DeliveredState
+    : public OrderState {
+
+public:
+
+    void next(
+        Order* order
+    ) override {
+
+        cout
+
+            << "Already delivered\n";
+    }
+
+
+    bool canCancel()
+    override {
+
+        return false;
+    }
+
+
+    string getName()
+    override {
+
+        return "DELIVERED";
+    }
+};
+
+
+
+class CancelledState
+    : public OrderState {
+
+public:
+
+    void next(
+        Order* order
+    ) override {
+
+        cout
+
+            << "Order cancelled\n";
+    }
+
+
+    bool canCancel()
+    override {
+
+        return false;
+    }
+
+
+    string getName()
+    override {
+
+        return "CANCELLED";
+    }
+};
+
+
+// ---------------- ORDER MANAGER ----------------
+
+class OrderManager {
+
+private:
+
+    unordered_map<
+        int,
+        Order*
+    > orders;
+
+    int nextOrderId = 1;
+
+public:
+
+    Order* createOrder(
+
+        Customer* customer,
+
+        vector<MenuItem*> items,
+
+        int total
+    ) {
+
+        Order* order =
+
+            new Order(
+
+                nextOrderId,
+
+                customer,
+
+                items,
+
+                total
+            );
+
+
+        orders
+        [nextOrderId]
+        = order;
+
+
+        nextOrderId++;
+
+
+        return order;
+    }
+
+
+
+    void trackOrder(
+        int orderId
+    ) {
+
+        if (
+            orders
+            .count(orderId)
+            == 0
+        ) {
+
+            cout
+
+                << "Order not found\n";
+
+            return;
+        }
+
+
+        orders
+        [orderId]
+        ->printStatus();
+    }
+
+
+    Order* getOrder(
+        int orderId
+    ) {
+
+        return
+            orders
+            [orderId];
+    }
+
+
+    ~OrderManager() {
+
+        for (
+            auto& [id, order] :
+            orders
+        ) {
+
+            delete order;
+        }
+    }
+};
+
+
+// ---------------- DRIVER ----------------
+
+int main() {
+
+    Customer* c =
+
+        new Customer(
+            1,
+            "Nirvan"
+        );
+
+
+    MenuItem* pizza =
+
+        new MenuItem(
+            101,
+            "Pizza"
+        );
+
+
+    vector<MenuItem*> items = {
+
+        pizza
+    };
+
+
+    OrderManager manager;
+
+
+    Order* order =
+
+        manager
+        .createOrder(
+
+            c,
+
+            items,
+
+            500
+        );
+
+
+    manager
+    .trackOrder(1);
+
+
+    order
+    ->nextState();
+
+    order
+    ->nextState();
+
+
+    manager
+    .trackOrder(1);
+
+
+    order
+    ->cancel();
+
+
+    delete c;
+
+    delete pizza;
+
+    return 0;
+}
